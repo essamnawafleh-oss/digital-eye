@@ -1,0 +1,468 @@
+{
+  "schema_version": "1.0",
+  "status": "partial",
+  "review_required": false,
+  "review_reasons": [],
+  "document": {
+    "path": "/home/user/digital-eye/docs/samples/permit_mixed.pdf",
+    "file_name": "permit_mixed.pdf",
+    "format": "pdf",
+    "size_bytes": 44336,
+    "sha256": "60c8a649ea95a17d040bbcf8e24c64d3b74ee75e25fbd03548144495ec9a395d",
+    "page_count": 2,
+    "has_text_layer": true,
+    "pdf_metadata": {
+      "format": "PDF 1.7"
+    }
+  },
+  "document_type": {
+    "requested": null,
+    "detected": "building_permit",
+    "detection_method": "keyword_heuristic",
+    "detection_score": 0.833,
+    "used": "building_permit"
+  },
+  "fields": {
+    "permit_number": {
+      "name": "permit_number",
+      "value": "BP-2024/0153",
+      "raw_text": "BP-2024/0153",
+      "status": "extracted",
+      "validation_status": "valid",
+      "validation_messages": [],
+      "page": 1,
+      "bbox": [
+        122.01699829101562,
+        96.69200134277344,
+        199.57801818847656,
+        109.48500061035156
+      ],
+      "provider": "direct_text",
+      "confidence": null,
+      "confidence_kind": "native_text_layer",
+      "requires_review": false,
+      "review_reasons": [],
+      "evidence": [
+        {
+          "provider": "direct_text",
+          "stage": "native_text",
+          "level": 1,
+          "method": "label_value",
+          "page": 1,
+          "bbox": [
+            122.01699829101562,
+            96.69200134277344,
+            199.57801818847656,
+            109.48500061035156
+          ],
+          "raw_text": "BP-2024/0153",
+          "value": "BP-2024/0153",
+          "confidence": null,
+          "confidence_kind": "native_text_layer",
+          "note": "label='permit no'; status=extracted"
+        },
+        {
+          "provider": "direct_text",
+          "stage": "native_text",
+          "level": 1,
+          "method": "label_value",
+          "page": 1,
+          "bbox": [
+            393.0947265625,
+            122.6919937133789,
+            470.6557312011719,
+            135.48500061035156
+          ],
+          "raw_text": "BP-2024/0153",
+          "value": "BP-2024/0153",
+          "confidence": null,
+          "confidence_kind": "native_text_layer",
+          "note": "label='رقم الرخصة'; status=extracted"
+        }
+      ]
+    },
+    "issue_date": {
+      "name": "issue_date",
+      "value": "2024-03-05",
+      "raw_text": "05/03/2024",
+      "status": "extracted",
+      "validation_status": "warning",
+      "validation_messages": [
+        "ambiguous day/month order in '05/03/2024'; interpreted as DMY"
+      ],
+      "page": 1,
+      "bbox": [
+        126.35100555419922,
+        148.69198608398438,
+        189.71102905273438,
+        161.48500061035156
+      ],
+      "provider": "direct_text",
+      "confidence": null,
+      "confidence_kind": "native_text_layer",
+      "requires_review": false,
+      "review_reasons": [],
+      "evidence": [
+        {
+          "provider": "direct_text",
+          "stage": "native_text",
+          "level": 1,
+          "method": "label_value",
+          "page": 1,
+          "bbox": [
+            126.35100555419922,
+            148.69198608398438,
+            189.71102905273438,
+            161.48500061035156
+          ],
+          "raw_text": "05/03/2024",
+          "value": "2024-03-05",
+          "confidence": null,
+          "confidence_kind": "native_text_layer",
+          "note": "label='issue date'; status=extracted"
+        }
+      ]
+    },
+    "owner_name": {
+      "name": "owner_name",
+      "value": "محمد أحمد الخطيب",
+      "raw_text": "محمد أحمد الخطيب",
+      "status": "extracted",
+      "validation_status": "valid",
+      "validation_messages": [],
+      "page": 1,
+      "bbox": [
+        383.98382568359375,
+        174.69198608398438,
+        474.8548278808594,
+        187.48500061035156
+      ],
+      "provider": "direct_text",
+      "confidence": null,
+      "confidence_kind": "native_text_layer",
+      "requires_review": false,
+      "review_reasons": [],
+      "evidence": [
+        {
+          "provider": "direct_text",
+          "stage": "native_text",
+          "level": 1,
+          "method": "label_value",
+          "page": 1,
+          "bbox": [
+            383.98382568359375,
+            174.69198608398438,
+            474.8548278808594,
+            187.48500061035156
+          ],
+          "raw_text": "محمد أحمد الخطيب",
+          "value": "محمد أحمد الخطيب",
+          "confidence": null,
+          "confidence_kind": "native_text_layer",
+          "note": "label='اسم المالك'; status=extracted"
+        }
+      ]
+    },
+    "plot_number": {
+      "name": "plot_number",
+      "value": "412",
+      "raw_text": "412",
+      "status": "extracted",
+      "validation_status": "valid",
+      "validation_messages": [],
+      "page": 1,
+      "bbox": [
+        107.33200073242188,
+        200.69198608398438,
+        128.32000732421875,
+        213.48500061035156
+      ],
+      "provider": "direct_text",
+      "confidence": null,
+      "confidence_kind": "native_text_layer",
+      "requires_review": false,
+      "review_reasons": [],
+      "evidence": [
+        {
+          "provider": "direct_text",
+          "stage": "native_text",
+          "level": 1,
+          "method": "label_value",
+          "page": 1,
+          "bbox": [
+            107.33200073242188,
+            200.69198608398438,
+            128.32000732421875,
+            213.48500061035156
+          ],
+          "raw_text": "412",
+          "value": "412",
+          "confidence": null,
+          "confidence_kind": "native_text_layer",
+          "note": "label='plot no'; status=extracted"
+        },
+        {
+          "provider": "direct_text",
+          "stage": "native_text",
+          "level": 1,
+          "method": "label_value",
+          "page": 2,
+          "bbox": [
+            107.33200073242188,
+            96.69200134277344,
+            128.32000732421875,
+            109.48500061035156
+          ],
+          "raw_text": "412",
+          "value": "412",
+          "confidence": null,
+          "confidence_kind": "native_text_layer",
+          "note": "label='plot no'; status=extracted"
+        }
+      ]
+    },
+    "basin": {
+      "name": "basin",
+      "value": "الجبيهة الشمالي",
+      "raw_text": "الجبيهة الشمالي",
+      "status": "extracted",
+      "validation_status": "valid",
+      "validation_messages": [],
+      "page": 1,
+      "bbox": [
+        421.06475830078125,
+        226.69198608398438,
+        494.225830078125,
+        239.48500061035156
+      ],
+      "provider": "direct_text",
+      "confidence": null,
+      "confidence_kind": "native_text_layer",
+      "requires_review": false,
+      "review_reasons": [],
+      "evidence": [
+        {
+          "provider": "direct_text",
+          "stage": "native_text",
+          "level": 1,
+          "method": "label_value",
+          "page": 1,
+          "bbox": [
+            421.06475830078125,
+            226.69198608398438,
+            494.225830078125,
+            239.48500061035156
+          ],
+          "raw_text": "الجبيهة الشمالي",
+          "value": "الجبيهة الشمالي",
+          "confidence": null,
+          "confidence_kind": "native_text_layer",
+          "note": "label='الحوض'; status=extracted"
+        }
+      ]
+    },
+    "area": {
+      "name": "area",
+      "value": {
+        "value": 1250.5,
+        "unit": "m2"
+      },
+      "raw_text": "1,250.50 m2",
+      "status": "extracted",
+      "validation_status": "valid",
+      "validation_messages": [],
+      "page": 1,
+      "bbox": [
+        122.62200164794922,
+        252.69198608398438,
+        192.76901245117188,
+        265.4849853515625
+      ],
+      "provider": "direct_text",
+      "confidence": null,
+      "confidence_kind": "native_text_layer",
+      "requires_review": false,
+      "review_reasons": [],
+      "evidence": [
+        {
+          "provider": "direct_text",
+          "stage": "native_text",
+          "level": 1,
+          "method": "label_value",
+          "page": 1,
+          "bbox": [
+            122.62200164794922,
+            252.69198608398438,
+            192.76901245117188,
+            265.4849853515625
+          ],
+          "raw_text": "1,250.50 m2",
+          "value": {
+            "value": 1250.5,
+            "unit": "m2"
+          },
+          "confidence": null,
+          "confidence_kind": "native_text_layer",
+          "note": "label='total area'; status=extracted"
+        }
+      ]
+    }
+  },
+  "tables": [],
+  "pages": [
+    {
+      "page_number": 1,
+      "width": 595.0,
+      "height": 842.0,
+      "coord_space": "pdf_points",
+      "text_source": "direct_text",
+      "max_level": 1,
+      "quality": {
+        "char_count": 160,
+        "word_count": 29,
+        "arabic_char_ratio": 0.5364,
+        "garbage_ratio": 0.0,
+        "suspicious_token_ratio": 0.0,
+        "presentation_form_ratio": 0.7966,
+        "reversed_arabic_score": 0.0,
+        "image_coverage": 0.0,
+        "mean_confidence": null,
+        "low_confidence_ratio": null,
+        "is_reliable": true,
+        "reasons": [
+          "info:presentation_forms_normalised(0.80)"
+        ]
+      },
+      "text": "/ رخصة بناء\nBuilding Permit\nPermit No: BP-2024/0153\nرقم الرخصة: BP-2024/0153\nIssue Date: 05/03/2024\nاسم المالك: محمد أحمد الخطيب\nPlot No: 412\nالحوض: الجبيهة الشمالي\nTotal Area: 1,250.50 m2"
+    },
+    {
+      "page_number": 2,
+      "width": 595.0,
+      "height": 842.0,
+      "coord_space": "pdf_points",
+      "text_source": "direct_text",
+      "max_level": 1,
+      "quality": {
+        "char_count": 22,
+        "word_count": 6,
+        "arabic_char_ratio": 0.3889,
+        "garbage_ratio": 0.0,
+        "suspicious_token_ratio": 0.0,
+        "presentation_form_ratio": 0.8333,
+        "reversed_arabic_score": null,
+        "image_coverage": 0.0,
+        "mean_confidence": null,
+        "low_confidence_ratio": null,
+        "is_reliable": true,
+        "reasons": [
+          "info:presentation_forms_normalised(0.83)"
+        ]
+      },
+      "text": "/ ملاحظات\nNotes\nPlot No: 412"
+    }
+  ],
+  "validation": {
+    "errors": [],
+    "warnings": [
+      {
+        "code": "field_ValidationStatus.WARNING",
+        "severity": "warning",
+        "message": "ambiguous day/month order in '05/03/2024'; interpreted as DMY",
+        "field": "issue_date",
+        "page": 1
+      }
+    ]
+  },
+  "processing": {
+    "stages": [
+      {
+        "level": 1,
+        "stage": "native_text",
+        "provider": "direct_text",
+        "pages": [
+          1
+        ],
+        "duration_ms": 4.83,
+        "outcome": "ok",
+        "detail": null
+      },
+      {
+        "level": 1,
+        "stage": "native_text",
+        "provider": "direct_text",
+        "pages": [
+          2
+        ],
+        "duration_ms": 0.95,
+        "outcome": "ok",
+        "detail": null
+      }
+    ],
+    "providers_used": [
+      "direct_text"
+    ],
+    "max_level_reached": 1,
+    "duration_ms": 14.17,
+    "peak_python_memory_mb": null,
+    "peak_rss_mb": 155.1,
+    "offline_mode": true,
+    "package_version": "0.1.0",
+    "config": {
+      "models_dir": "/opt/dpc-models",
+      "render_dpi": 200,
+      "offline": true,
+      "strict_network_guard": false,
+      "include_page_text": true,
+      "extract_tables": null,
+      "vlm_for_optional_fields": false,
+      "trace_python_memory": false,
+      "date_order": "DMY",
+      "decimal_separator": "auto",
+      "dunum_m2": null,
+      "ocr_provider": "paddle",
+      "paddle": {
+        "enabled": true,
+        "lang": "ar",
+        "det_model_name": "PP-OCRv5_server_det",
+        "rec_model_name": "arabic_PP-OCRv5_mobile_rec",
+        "det_model_dir": null,
+        "rec_model_dir": null,
+        "device": "cpu",
+        "python_executable": null,
+        "worker_timeout_s": 600.0
+      },
+      "vlm": {
+        "enabled": true,
+        "backend": "llama_cpp",
+        "chat_handler": "qwen2.5-vl",
+        "model_path": null,
+        "mmproj_path": null,
+        "model_file": "Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf",
+        "mmproj_file": "mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf",
+        "n_ctx": 8192,
+        "n_threads": null,
+        "n_gpu_layers": 0,
+        "max_tokens": 1024,
+        "temperature": 0.0,
+        "max_image_side_px": 1600,
+        "max_retries": 1,
+        "python_executable": null,
+        "worker_timeout_s": 1800.0
+      },
+      "routing": {
+        "min_chars_per_page": 25,
+        "max_garbage_ratio": 0.1,
+        "max_suspicious_token_ratio": 0.15,
+        "reversed_arabic_threshold": 0.6,
+        "min_image_coverage_for_scan": 0.5,
+        "min_drawings_for_vector_page": 500,
+        "min_ocr_confidence": 0.8,
+        "max_level": 3,
+        "max_vlm_pages": 3,
+        "max_vlm_fields_per_call": 12,
+        "vlm_for_conflicts": true
+      }
+    }
+  },
+  "error": null
+}

@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv*/
+.pytest_cache/
+build/
+dist/
+# model weights never go into the repository
+*.gguf
+*.pdiparams
+*.pdmodel
+models_local/
+benchmark_results.json

@@ -1,0 +1,8 @@
+# Core (native PDF text, rendering, routing, validation, schema). Verified on Python 3.13.16 / Linux x86_64.
+# PyMuPDF is AGPL-3.0 or commercial: read docs/LICENSES.md before distributing.
+# Note: pymupdf 2.0 also installs pymupdf-layout, pymupdf4llm and onnxruntime as hard dependencies.
+pymupdf==2.0
+pillow>=10.4,<14        # 13.0.0 verified; surya pins 10.4.0 (also verified)
+numpy>=2.0,<3           # 2.3.5 and 2.5.4 verified
+pydantic>=2.7,<3        # 2.14.1 verified
+pytest>=8               # tests only

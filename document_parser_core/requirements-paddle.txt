@@ -1,0 +1,5 @@
+# PaddleOCR provider (CPU). Install into its own venv, or alongside core.
+# Do NOT install in the same environment as surya-ocr (opencv package collision).
+-r requirements.txt
+paddlepaddle==3.3.1     # CPU wheel from PyPI; GPU builds come from Paddle's own index (not verified here)
+paddleocr==3.7.0        # pulls paddlex==3.7.2, opencv-contrib-python==4.10.0.84

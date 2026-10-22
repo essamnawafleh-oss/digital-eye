@@ -1,0 +1,6 @@
+# Vision-language provider. llama-cpp-python ships as sdist only: it is compiled at install time.
+# CPU (verified on Linux with gcc 13 + cmake):   CMAKE_ARGS="-DGGML_NATIVE=OFF" pip install -r requirements-vlm.txt
+# CUDA (NOT verified here):                     CMAKE_ARGS="-DGGML_CUDA=on" pip install -r requirements-vlm.txt
+# Windows needs Visual Studio Build Tools (C++ workload) + CMake.
+-r requirements.txt
+llama-cpp-python==0.3.36

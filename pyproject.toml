@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "document_parser_core"
+version = "0.1.0"
+description = "Offline-first, modular document parsing core (PDF/PNG/JPEG) with evidence-tracked structured output."
+requires-python = ">=3.11"
+license = { text = "Proprietary - see docs/LICENSES.md for third-party terms (PyMuPDF is AGPL-3.0)" }
+dependencies = [
+    "pymupdf==2.0",
+    "pillow>=10.4,<14",
+    "numpy>=2.0,<3",
+    "pydantic>=2.7,<3",
+]
+
+[project.optional-dependencies]
+paddle = ["paddlepaddle==3.3.1", "paddleocr==3.7.0"]
+vlm = ["llama-cpp-python==0.3.36"]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["document_parser_core*"]
+
+[tool.pytest.ini_options]
+testpaths = ["document_parser_core/tests"]
+markers = [
+    "requires_models: needs real local model weights (skipped when absent)",
+]
