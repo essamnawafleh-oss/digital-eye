@@ -115,3 +115,10 @@ def test_cross_check_agreement_accepts_value(tmp_path):
 def test_cross_check_catches_truncated_identifier(tmp_path):
     r = _parse(tmp_path, [("BP-2025/907 رقم الرخصة", 0.95, "BP-2025/9070 ")])
     assert r["fields"]["permit_number"]["requires_review"]
+
+
+def test_persian_letter_forms_are_normalised(tmp_path):
+    # OCR returned Farsi yeh (U+06CC) in an Arabic name: 'لیلى' for 'ليلى'.
+    r = _parse(tmp_path, [("اسم المالك: لیلى نور القاسم", 0.98, None), ("الحوض: کفر", 0.98, None)])
+    assert r["fields"]["owner_name"]["value"] == "ليلى نور القاسم"
+    assert r["fields"]["basin"]["value"] == "كفر"

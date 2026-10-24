@@ -24,10 +24,19 @@ _ALEF_VARIANTS = str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا", 
 _DIACRITICS = re.compile(r"[ً-ٰٟ]")
 
 
+# Persian/Urdu letter forms that look identical to Arabic ones. The Arabic OCR model
+# emits them (benchmark 2026-10-24: 'ليلى' read as 'لیلى' with U+06CC), and they break
+# matching and comparison. Final Farsi yeh is the Arabic alef maqsura.
+_FARSI_YEH_FINAL = re.compile("\u06cc(?![\u0621-\u064a\u06cc])")
+
+
 def normalize_text(text: str) -> str:
-    """Normalise for storage: NFKC folds Arabic presentation forms to base letters."""
-    text = unicodedata.normalize("NFKC", text)
-    return text.replace(TATWEEL, "")
+    """Normalise for storage: NFKC folds Arabic presentation forms to base letters;
+    Persian yeh/keheh become the Arabic letters they look like."""
+    text = unicodedata.normalize("NFKC", text).replace(TATWEEL, "")
+    if "\u06cc" in text or "\u06a9" in text:
+        text = _FARSI_YEH_FINAL.sub("\u0649", text).replace("\u06cc", "\u064a").replace("\u06a9", "\u0643")
+    return text
 
 
 def normalize_for_match(text: str) -> str:
