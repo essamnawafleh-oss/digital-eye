@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 import numpy as np
@@ -49,10 +50,15 @@ class PaddleOCRProvider(OCRProvider):
     def __init__(self, config: ParserConfig):
         self.config = config
         self._ocr = None
+        self._cross = None
 
     def check_ready(self) -> None:
         check_model_dir(self.config.paddle_det_dir(), f"detection model '{self.config.paddle.det_model_name}'")
         check_model_dir(self.config.paddle_rec_dir(), f"recognition model '{self.config.paddle.rec_model_name}'")
+        if self.config.paddle.cross_check_rec_model_name:
+            check_model_dir(self.config.paddle_cross_check_dir(),
+                            f"cross-check recognition model '{self.config.paddle.cross_check_rec_model_name}' "
+                            "(set paddle.cross_check_rec_model_name=None to disable)")
         try:
             import paddleocr  # noqa: F401
         except ImportError as exc:
@@ -80,7 +86,19 @@ class PaddleOCRProvider(OCRProvider):
                 use_doc_unwarping=False,
                 use_textline_orientation=False,
                 device=p.device,
+                enable_mkldnn=p.enable_mkldnn,
+                text_det_limit_type=p.det_limit_type,
+                text_det_limit_side_len=p.det_limit_side_len,
             )
+            if p.cross_check_rec_model_name:
+                from paddleocr import TextRecognition
+
+                self._cross = TextRecognition(
+                    model_name=p.cross_check_rec_model_name,
+                    model_dir=str(self.config.paddle_cross_check_dir()),
+                    device=p.device,
+                    enable_mkldnn=p.enable_mkldnn,
+                )
         except Exception as exc:
             raise ProviderError(f"PaddleOCR failed to initialise: {exc}") from exc
         return self._ocr
@@ -93,17 +111,27 @@ class PaddleOCRProvider(OCRProvider):
             results = ocr.predict(arr)
         except Exception as exc:
             raise ProviderError(f"PaddleOCR inference failed on page {page_number}: {exc}") from exc
-        lines: list[Line] = []
+        raw: list[tuple[str, float, np.ndarray]] = []
         for res in results:
             texts = list(res["rec_texts"])
             scores = [float(s) for s in res["rec_scores"]]
             polys = [np.asarray(p, dtype=float) for p in res["rec_polys"]]
-            for text, score, poly in zip(texts, scores, polys, strict=True):
-                if not text.strip():
-                    continue
-                xs, ys = poly[:, 0] * scale, poly[:, 1] * scale
-                bbox = [float(xs.min()), float(ys.min()), float(xs.max()), float(ys.max())]
-                lines.append(ocr_line(text, bbox, page_number, score))
+            raw += [(t, sc, po) for t, sc, po in zip(texts, scores, polys, strict=True) if t.strip()]
+        cross = self._cross_check(arr, raw, page_number)
+        lines: list[Line] = []
+        for i, (text, score, poly) in enumerate(raw):
+            xs, ys = poly[:, 0] * scale, poly[:, 1] * scale
+            bbox = [float(xs.min()), float(ys.min()), float(xs.max()), float(ys.max())]
+            alt = cross.get(i)
+            cross_text, cross_model = None, None
+            if alt is not None and not tu.has_arabic(text) and not tu.has_arabic(alt[0]):
+                # Latin/digit-only line: the Latin model is the better primary reader.
+                (text, score), cross_text, cross_model = alt, text, self.config.paddle.rec_model_name
+            elif alt is not None:
+                cross_text, cross_model = alt[0], self.config.paddle.cross_check_rec_model_name
+            line = ocr_line(text, bbox, page_number, score)
+            line.cross_check_text, line.cross_check_model = cross_text, cross_model
+            lines.append(line)
         lines.sort(key=lambda ln: (round(ln.bbox[1] / 4), ln.bbox[0]))
         for i, line in enumerate(lines):
             for w in line.words:
@@ -111,15 +139,52 @@ class PaddleOCRProvider(OCRProvider):
         return lines
 
 
+    def _cross_check(self, arr: np.ndarray, raw: list, page_number: int) -> dict[int, tuple[str, float]]:
+        """Re-read lines containing Latin letters or digits with the cross-check model."""
+        if self._cross is None:
+            return {}
+        idx, crops = [], []
+        h, w = arr.shape[:2]
+        for i, (text, _score, poly) in enumerate(raw):
+            if not re.search(r"[A-Za-z0-9]", text):
+                continue
+            x0, y0 = np.floor(poly.min(0)).astype(int) - 2
+            x1, y1 = np.ceil(poly.max(0)).astype(int) + 2
+            crop = arr[max(0, y0):min(h, y1), max(0, x0):min(w, x1)]
+            if crop.shape[0] >= 4 and crop.shape[1] >= 4:
+                idx.append(i)
+                crops.append(np.ascontiguousarray(crop))
+        if not crops:
+            return {}
+        try:
+            out = self._cross.predict(crops)
+        except Exception as exc:
+            raise ProviderError(f"OCR cross-check failed on page {page_number}: {exc}") from exc
+        return {i: (str(o["rec_text"]).strip(), float(o["rec_score"])) for i, o in zip(idx, out, strict=True)}
+
+
+_AR = "ء-يٱ-ۓ"
+_GLUED = re.compile(rf"(?<=[{_AR}])(?=[A-Za-z0-9])|(?<=[A-Za-z0-9])(?=[{_AR}])")
+_COLON = re.compile(rf"(?<=[A-Za-z{_AR}]):(?=[A-Za-z0-9{_AR}])")
+
+
+def split_script_boundaries(text: str) -> str:
+    """Insert spaces the recogniser dropped where Arabic meets Latin/digits and after a
+    colon glued to the next word. Observed with arabic_PP-OCRv5_mobile_rec:
+    'BP-2024/0153رقم الرخصة', 'Owner:محمد الخطيب'. Arabic-Indic digits are untouched,
+    so 'م2' becomes 'م 2' (the unit parser accepts both)."""
+    return _GLUED.sub(" ", _COLON.sub(": ", text))
+
+
 def ocr_line(text: str, bbox: list[float], page: int, score: float | None) -> Line:
     """Build a Line from a recognised text line, interpolating word boxes by
     character count (right-to-left for Arabic lines)."""
-    text = tu.normalize_text(text)
+    text = split_script_boundaries(tu.normalize_text(text))
     tokens = tu.tokens_of(text)
     total = sum(len(t) for t in tokens) + max(0, len(tokens) - 1)
     x0, y0, x1, y1 = bbox
     width = (x1 - x0) or 1.0
-    rtl = tu.has_arabic(text)
+    rtl = tu.arabic_char_ratio(text) > 0.5  # same rule as extraction.build_rows
     words, offset = [], 0
     for tok in tokens:
         a, b = offset / total, (offset + len(tok)) / total

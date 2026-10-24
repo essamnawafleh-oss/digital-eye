@@ -193,3 +193,24 @@ paddle (`paddleocr 3.7.0`) and vlm (`llama-cpp-python 0.3.36`). See the README f
 
 The Linux network-namespace test (`unshare -rn`) ran and passed in all three.
 Real-model tests (`-m requires_models`) were **skipped** everywhere: no weights were available.
+
+## 9. Real-model findings (2026-10-24, after Hugging Face was allowed)
+
+PaddleOCR was run with real weights for the first time. VERIFIED on Linux x86_64,
+4 CPU cores, no GPU, paddlepaddle 3.3.1 / paddleocr 3.7.0:
+
+| Finding | Consequence in the code |
+|---|---|
+| oneDNN (MKL-DNN) inference crashes on both PP-OCRv5 detectors: `NotImplementedError: ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]` | `paddle.enable_mkldnn=False` by default |
+| Without oneDNN and without a size cap, `PP-OCRv5_server_det` tried to allocate 20 GB for one 200-dpi A4 page | `text_det_limit_type="max"`, `text_det_limit_side_len=960` |
+| `PP-OCRv5_server_det` 20 s/page, 4.0 GB RSS; `PP-OCRv5_mobile_det` 2.0 s/page, 690 MB, same text on the test page | mobile detector is the default |
+| Arabic recogniser output is in **logical** order for Arabic-only lines (no reversal needed) | — |
+| Mixed Arabic/Latin lines come back in inconsistent run order (`BP-2024/0153 :رقم الرخصة`), often without the space/colon between script runs | script-boundary spacing; labels may follow their value |
+| Arabic-Indic numbers lose the decimal separator `٫` and the unit (`٢٨٩٣٫٦٦ م2` → `٢٨٩٣٦٦`) with scores > 0.9 | such OCR values always require review |
+| Latin/digit runs inside Arabic lines are sometimes truncated (`128` → `18`, score 0.94) | `en_PP-OCRv5_mobile_rec` re-reads those lines; disagreement → review |
+| The `reverse` post-processing in paddlex `CTCLabelDecode` is not enabled for this model | no compensation needed |
+| Model cards of all three Paddle models: Apache-2.0 | licence verified |
+| Offline: full OCR pipeline inside `unshare -rn` (no network interfaces) | `scripts/verify_offline.sh` → `OFFLINE CHECK: PASS` |
+| Subprocess worker: core venv (no paddle) → paddle-venv worker, inside the namespace | all 6 permit fields correct |
+
+Benchmark: `docs/BENCHMARK_RESULTS.md`. The VLM provider is still not run with weights.

@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import difflib
 import re
 import statistics
 from dataclasses import dataclass, field
@@ -56,20 +57,33 @@ def build_rows(page: PageContent) -> list[Row]:
         rows.append([w])
     out = []
     for ws in rows:
-        text = " ".join(w.text for w in ws)
-        rtl = tu.arabic_char_ratio(text) > 0.5
-        ws.sort(key=lambda w: w.bbox[0], reverse=rtl)
-        row = Row(ws, rtl)
-        row.segments = _segments(ws, rtl, med_h)
+        ws.sort(key=lambda w: w.bbox[0])
+        segments = _segments(ws, med_h)
+        # Direction is decided per segment: a tilted scan can put an English line and
+        # an Arabic line on the same visual row, and each must keep its own order.
+        ordered = []
+        for seg in segments:
+            seg_rtl = tu.arabic_char_ratio(" ".join(w.text for w in seg)) > 0.5
+            ordered.append(seg[::-1] if seg_rtl else seg)
+        rtl = tu.arabic_char_ratio(" ".join(w.text for w in ws)) > 0.5
+        if rtl:
+            ordered.reverse()
+        row = Row([w for seg in ordered for w in seg], rtl)
+        row.segments = ordered
         out.append(row)
     return out
 
 
-def _segments(words: list[Word], rtl: bool, med_h: float) -> list[list[Word]]:
+def _segments(words: list[Word], med_h: float) -> list[list[Word]]:
+    """Split x-sorted words at large gaps, and between different OCR lines (OCR line
+    boxes are already the recogniser's own segmentation)."""
     segs = [[words[0]]]
     for prev, cur in zip(words, words[1:]):
-        gap = (prev.bbox[0] - cur.bbox[2]) if rtl else (cur.bbox[0] - prev.bbox[2])
-        if gap > 1.8 * med_h:
+        gap = cur.bbox[0] - prev.bbox[2]
+        same_ocr_line = prev.approx_bbox and cur.approx_bbox and prev.line_id == cur.line_id
+        other_ocr_line = prev.approx_bbox and cur.approx_bbox and prev.line_id != cur.line_id
+        # Gaps inside an OCR line are interpolated, not measured: never split there.
+        if other_ocr_line or (gap > 1.8 * med_h and not same_ocr_line):
             segs.append([cur])
         else:
             segs[-1].append(cur)
@@ -91,6 +105,8 @@ class Candidate:
     confidence: float | None
     approx_bbox: bool
     label: str
+    value_before_label: bool = False
+    review_flags: list[str] = field(default_factory=list)
 
 
 def _match_label(seg: list[Word], start: int, label_tokens: list[str]) -> int | None:
@@ -105,14 +121,25 @@ def _match_label(seg: list[Word], start: int, label_tokens: list[str]) -> int | 
     return j
 
 
+def _has_colon_before(seg: list[Word], start: int) -> bool:
+    if seg[start].text.lstrip().startswith((":", "：")):
+        return True
+    return start > 0 and (seg[start - 1].text.strip() in _SEPARATORS or seg[start - 1].text.rstrip().endswith((":", "：")))
+
+
 def _has_colon_after(seg: list[Word], end: int) -> bool:
     if seg[end - 1].text.rstrip().endswith((":", "：")):
         return True
     return end < len(seg) and seg[end].text.strip() in _SEPARATORS
 
 
-def _find_labels(seg: list[Word], specs: list[FieldSpec]) -> list[tuple[int, int, FieldSpec, str]]:
-    """All (start, end, spec, label) label hits in a segment, longest label first."""
+def _find_labels(seg: list[Word], specs: list[FieldSpec]) -> list[tuple[int, int, FieldSpec, str, bool]]:
+    """All (start, end, spec, label, value_first) label hits in a segment, longest label first.
+
+    `value_first` marks a label that follows its value: either the colon sits in front
+    (': رقم الرخصة'), or the label ends a right-to-left segment with words before it.
+    OCR produces both orders for mixed Arabic/Latin lines ('BP-2024/0153 رقم الرخصة')."""
+    seg_rtl = tu.arabic_char_ratio(" ".join(w.text for w in seg)) > 0.5
     hits = []
     labels = sorted(((l, s) for s in specs for l in s.labels), key=lambda x: -len(x[0]))
     taken: set[int] = set()
@@ -125,22 +152,37 @@ def _find_labels(seg: list[Word], specs: list[FieldSpec]) -> list[tuple[int, int
             if end is None:
                 continue
             leading_only_punct = all(_norm_word(w.text) == "" or re.fullmatch(r"\d+[.)]?", w.text) for w in seg[:start])
-            if leading_only_punct or _has_colon_after(seg, end):
-                hits.append((start, end, spec, label))
+            nothing_after = all(w.text.strip() in _SEPARATORS for w in seg[end:])
+            value_first = not _has_colon_after(seg, end) and start > 0 and (
+                _has_colon_before(seg, start) or (seg_rtl and nothing_after))
+            if leading_only_punct or _has_colon_after(seg, end) or value_first:
+                hits.append((start, end, spec, label, value_first))
                 taken.update(range(start, end))
     return sorted(hits, key=lambda h: h[0])
 
 
 def extract_fields(page: PageContent, specs: list[FieldSpec], *, min_conf: float, provider: str,
-                   date_order="DMY", decimal_separator="auto", dunum_m2=None) -> list[Candidate]:
+                   date_order="DMY", decimal_separator="auto", dunum_m2=None,
+                   review_conf: float | None = None) -> list[Candidate]:
     rows = build_rows(page)
+    label_heads = sorted({_norm_word(l.split()[-1]) for s in specs for l in s.labels
+                          if tu.has_arabic(l) and len(_norm_word(l.split()[-1])) >= 3}, key=len, reverse=True)
+    for row in rows:
+        row.segments = [_split_glued_labels(seg, label_heads) for seg in row.segments]
+    label_keys = {_compact(l) for s in specs for l in s.labels if len(_compact(l)) >= 4}
+    lines_by_id = {i: ln for i, ln in enumerate(page.lines)}
     out: list[Candidate] = []
     for r_idx, row in enumerate(rows):
         for s_idx, seg in enumerate(row.segments):
             hits = _find_labels(seg, specs)
-            for h_idx, (_start, end, spec, label) in enumerate(hits):
+            for h_idx, (start, end, spec, label, value_first) in enumerate(hits):
                 stop = hits[h_idx + 1][0] if h_idx + 1 < len(hits) else len(seg)
                 value_words = _strip_separators(seg[end:stop])
+                before = False
+                if not value_words and value_first:
+                    prev_end = hits[h_idx - 1][1] if h_idx > 0 else 0
+                    value_words = _strip_separators(seg[prev_end:start])
+                    before = bool(value_words)
                 if not value_words and h_idx + 1 == len(hits):
                     if s_idx + 1 < len(row.segments) and not _find_labels(row.segments[s_idx + 1], specs):
                         value_words = row.segments[s_idx + 1]
@@ -151,9 +193,68 @@ def extract_fields(page: PageContent, specs: list[FieldSpec], *, min_conf: float
                 if not value_words:
                     continue
                 cand = _make_candidate(spec, label, value_words, page.page_number, min_conf,
-                                       date_order, decimal_separator, dunum_m2)
+                                       date_order, decimal_separator, dunum_m2, label_keys)
+                if cand is None:
+                    continue
+                if cand.status == "extracted":
+                    flag = cross_check_disagreement(cand.raw_text, value_words, lines_by_id)
+                    if flag:
+                        cand.review_flags.append(flag)
+                if review_conf and cand.status == "extracted" and cand.confidence is not None and cand.confidence < review_conf:
+                    cand.review_flags.append(f"ocr_score_below_review_threshold({cand.confidence:.2f}<{review_conf})")
+                cand.value_before_label = before
                 out.append(cand)
     return out
+
+
+def _split_glued_labels(seg: list[Word], heads: list[str]) -> list[Word]:
+    """Split OCR words where the recogniser dropped the space (and colon) between an
+    Arabic label and its value: 'المالكمحمد' -> 'المالك' + 'محمد', 'الكلية٢٨٩٣' ->
+    'الكلية' + '٢٨٩٣'. Only OCR words (approx_bbox), and only when >= 3 letters or a
+    digit follow, so 'المالكين' stays intact."""
+    out: list[Word] = []
+    for w in seg:
+        split = None
+        if w.approx_bbox and tu.has_arabic(w.text):
+            for head in heads:
+                for cut in range(len(head) - 1, min(len(w.text), len(head) + 3)):
+                    rest = w.text[cut:].lstrip(":：")
+                    letters = len(re.sub(r"[^\u0621-\u064A]", "", rest))
+                    if _norm_word(w.text[:cut]) == head and (letters >= 3 or rest[:1].isdigit()):
+                        split = (w.text[:cut], rest)
+                        break
+                if split:
+                    break
+        if not split:
+            out.append(w)
+            continue
+        a, b = split
+        x0, y0, x1, y1 = w.bbox
+        mid = x1 - (x1 - x0) * len(a) / max(1, len(a) + len(b))  # Arabic word: label on the right
+        out.append(w.model_copy(update={"text": a, "bbox": [mid, y0, x1, y1]}))
+        out.append(w.model_copy(update={"text": b, "bbox": [x0, y0, mid, y1]}))
+    return out
+
+
+def _latin_groups(text: str) -> list[str]:
+    return [g.upper() for g in re.findall(r"[A-Za-z0-9]+", tu.to_ascii_digits(tu.normalize_text(text)))]
+
+
+def cross_check_disagreement(raw: str, words: list[Word], lines_by_id: dict) -> str | None:
+    """Compare the Latin/digit groups of an OCR value with the independent second
+    reading of the same line(s). Returns a review flag if they disagree, else None."""
+    groups = _latin_groups(raw)
+    if not groups:
+        return None
+    other = [lines_by_id[w.line_id].cross_check_text for w in words
+             if w.approx_bbox and w.line_id in lines_by_id and lines_by_id[w.line_id].cross_check_text is not None]
+    if not other:
+        return None
+    alt = _latin_groups(" ".join(dict.fromkeys(other)))
+    n = len(groups)
+    if any(alt[i:i + n] == groups for i in range(len(alt) - n + 1)):
+        return None
+    return f"ocr_cross_check_disagrees(second_reading={' | '.join(dict.fromkeys(other))!r})"
 
 
 def _strip_separators(words: list[Word]) -> list[Word]:
@@ -171,8 +272,26 @@ def _x_overlap(a: list[Word], b: list[Word]) -> bool:
     return min(ba[2], bb[2]) - max(ba[0], bb[0]) > -0.5 * (ba[2] - ba[0])
 
 
-def _make_candidate(spec, label, words, page, min_conf, date_order, dec, dunum) -> Candidate:
+def _compact(text: str) -> str:
+    return re.sub(r"[\s:：.\-]", "", tu.normalize_for_match(text))
+
+
+def _looks_like_label(raw: str, label_keys: set[str]) -> bool:
+    """True if the 'value' is really (part of) a label, e.g. OCR read 'تاريخالإصدا'
+    where the permit number should be."""
+    c = _compact(raw)
+    if len(c) < 4:
+        return False
+    return any(c in k or difflib.SequenceMatcher(None, c, k).ratio() >= 0.8 for k in label_keys)
+
+
+_ARABIC_INDIC_DIGIT = re.compile(r"[٠-٩۰-۹]")
+
+
+def _make_candidate(spec, label, words, page, min_conf, date_order, dec, dunum, label_keys=frozenset()) -> Candidate | None:
     raw = " ".join(w.text for w in words).strip()
+    if _looks_like_label(raw, label_keys):
+        return None
     confs = [w.confidence for w in words if w.confidence is not None]
     conf = min(confs) if confs else None
     bbox = union_bbox([w.bbox for w in words])
@@ -182,7 +301,15 @@ def _make_candidate(spec, label, words, page, min_conf, date_order, dec, dunum) 
     if conf is not None and conf < min_conf:
         return Candidate(spec.name, "unreadable", raw, None, page, bbox, conf, approx, label)
     parsed = v.parse_typed(raw, spec.type, date_order=date_order, decimal_separator=dec, dunum_m2=dunum)
-    return Candidate(spec.name, "extracted", raw, parsed, page, bbox, conf, approx, label)
+    cand = Candidate(spec.name, "extracted", raw, parsed, page, bbox, conf, approx, label)
+    if approx and spec.type != "text" and _ARABIC_INDIC_DIGIT.search(raw):
+        # Benchmark 2026-10-24: arabic_PP-OCRv5_mobile_rec dropped the Arabic decimal
+        # separator '٫' and the unit in every Arabic-Indic area value on clean scans
+        # ('٢٨٩٣٫٦٦ م2' -> '٢٨٩٣٦٦'), with scores > 0.9. Never accept these unreviewed.
+        cand.review_flags.append("ocr_of_arabic_indic_digits_is_unreliable")
+    if spec.type in ("area", "length") and parsed.ok and parsed.value.get("unit") is None:
+        cand.review_flags.append("unit_not_stated_or_not_read")
+    return cand
 
 
 # ------------------------------------------------------------- coordinate tables

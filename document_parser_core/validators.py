@@ -25,7 +25,9 @@ class Parsed:
         return self.ok and bool(self.messages)
 
 
-_NUM_RE = re.compile(r"[-+−]?\d[\d.,'\s]*")
+# A number must not be glued to a preceding letter: the '2' of 'm2' / 'م2' is not a value,
+# and in 'الكلية289366' the match must not start in the middle of the digits either.
+_NUM_RE = re.compile(r"(?<![A-Za-z\u0621-\u064A0-9])[-+−]?\d[\d.,'\s]*")
 
 
 def parse_number(raw: str, decimal_separator: str = "auto", strict: bool = False) -> Parsed:

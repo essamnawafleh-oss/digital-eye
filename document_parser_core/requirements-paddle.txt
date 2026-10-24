@@ -3,3 +3,4 @@
 -r requirements.txt
 paddlepaddle==3.3.1     # CPU wheel from PyPI; GPU builds come from Paddle's own index (not verified here)
 paddleocr==3.7.0        # pulls paddlex==3.7.2, opencv-contrib-python==4.10.0.84
+huggingface_hub         # only for scripts/download_models.py (already a paddlex dependency)

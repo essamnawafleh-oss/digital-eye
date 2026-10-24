@@ -12,5 +12,7 @@ plans, coordinate tables, invoices and scans (PDF / PNG / JPEG, Arabic and Engli
 - Model provisioning: [`document_parser_core/models/README.md`](document_parser_core/models/README.md)
 - Benchmarks: [`benchmarks/`](benchmarks/)
 
-Status: first vertical slice. OCR (PaddleOCR) and VLM (Qwen2.5-VL via llama.cpp)
-adapters are implemented but **not yet validated with real model weights**.
+Status: first vertical slice. Native PDF extraction and PaddleOCR (Arabic/English scans)
+work offline and are tested, OCR only on **synthetic** scans so far
+([benchmark](docs/BENCHMARK_RESULTS.md)). The optional vision model (Qwen2.5-VL via
+llama.cpp) is implemented but **not yet run with real weights**.

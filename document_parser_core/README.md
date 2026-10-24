@@ -4,12 +4,15 @@ Offline-first, modular parsing of engineering documents, building permits, plans
 coordinate tables, invoices and scans (PDF, PNG, JPG/JPEG) into structured JSON with
 field-level evidence. Standalone; not yet integrated into Survey-Licensing-Studio.
 
-**Status: first vertical slice.** Native-PDF extraction, routing, validation, schema,
-offline enforcement and the OCR/VLM adapters are implemented and tested with synthetic
-documents and fake providers. **PaddleOCR and the Qwen2.5-VL provider have not been run
-with real model weights** (model hosts were unreachable from the development
-environment), and no accuracy has been measured. See
-[`docs/COMPATIBILITY_REPORT.md`](../docs/COMPATIBILITY_REPORT.md) and
+**Status: first vertical slice, OCR verified on synthetic scans.**
+- Native PDF text: works, tested.
+- PaddleOCR (Arabic + English scans and images): runs offline with real weights
+  (~20 MB of models, ~2–4 s per page on 4 CPU cores). It has been measured **only on
+  generated scans**, with no real-world documents yet; results are in
+  [`docs/BENCHMARK_RESULTS.md`](../docs/BENCHMARK_RESULTS.md).
+- Optional vision model (Qwen2.5-VL via llama.cpp): implemented, **never run with weights**.
+
+See [`docs/COMPATIBILITY_REPORT.md`](../docs/COMPATIBILITY_REPORT.md) and
 [`docs/KNOWN_LIMITATIONS.md`](../docs/KNOWN_LIMITATIONS.md).
 
 ## Quick start
@@ -28,6 +31,13 @@ result["fields"]["permit_number"]["evidence"]   # every occurrence, provider, pa
 ```
 
 CLI: `python -m document_parser_core.examples.parse_file permit.pdf --type building_permit`
+
+Scanned PDFs and images need the OCR models once:
+```bash
+pip install -r document_parser_core/requirements-paddle.txt && pip install -e . --no-deps
+python scripts/download_models.py --models-dir models_local        # ~20 MB, needs internet once
+python -m document_parser_core.examples.parse_file scan.jpg --type building_permit --models-dir models_local
+```
 
 A complete real output (from `docs/samples/permit_mixed.pdf`) is in
 [`docs/sample_output.json`](../docs/sample_output.json).

@@ -27,7 +27,7 @@ unreachable (UNVERIFIED). This is an engineering summary, not legal advice.
 
 | Model | Licence | Status | Notes |
 |---|---|---|---|
-| PP-OCRv5_server_det, arabic_PP-OCRv5_mobile_rec | Apache-2.0 (per PaddleOCR project) | UNVERIFIED per model card | Confirm on `huggingface.co/PaddlePaddle/<name>`. |
+| PP-OCRv5_mobile_det, arabic_PP-OCRv5_mobile_rec, en_PP-OCRv5_mobile_rec (the models in use) | **Apache-2.0** | VERIFIED 2026-10-24 on the downloaded model cards | Commercial use allowed; keep the licence notice. |
 | Qwen2.5-VL-7B-Instruct (GGUF by ggml-org) | Apache-2.0 | UNVERIFIED | Default candidate. GGUF conversion inherits the base model licence. |
 | Qwen2.5-VL-3B-Instruct | **Qwen Research License (non-commercial)** | UNVERIFIED | Do not use commercially without checking. |
 | Qwen2.5-VL-72B-Instruct | Qwen License (usage threshold terms) | UNVERIFIED | |

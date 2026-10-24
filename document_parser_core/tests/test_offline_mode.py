@@ -67,7 +67,7 @@ def test_missing_paddle_models_fail_clearly_without_download(tmp_path, scanned_p
 
 
 def test_paddle_model_dir_missing_files(tmp_path):
-    det = tmp_path / "paddle" / "PP-OCRv5_server_det"
+    det = tmp_path / "paddle" / ParserConfig().paddle.det_model_name
     det.mkdir(parents=True)
     (det / "inference.yml").write_text("x")
     cfg = ParserConfig(models_dir=str(tmp_path))
@@ -138,6 +138,61 @@ def test_real_paddle_ocr_offline(scanned_permit_pdf):
                        {"models_dir": MODELS_DIR, "strict_network_guard": True, "vlm": {"enabled": False}})
     assert r["pages"][0]["text_source"].startswith("ocr:")
     assert "Permit" in r["pages"][0]["text"]
+
+
+def _real_paddle_or_skip():
+    pytest.importorskip("paddleocr")
+    try:
+        PaddleOCRProvider(ParserConfig(models_dir=MODELS_DIR)).check_ready()
+    except ModelNotFoundError as exc:
+        pytest.skip(str(exc))
+
+
+SCAN_ROWS = ["Building Permit / رخصة بناء", "Permit No: BP-2024/0153", "Issue Date: 05/03/2024",
+             "اسم المالك: محمد أحمد الخطيب", "Plot No: 412", "الحوض: الجبيهة الشمالي", "Total Area: 1,250.50 m2"]
+SCAN_EXPECTED = {"permit_number": "BP-2024/0153", "issue_date": "2024-03-05", "owner_name": "محمد أحمد الخطيب",
+                 "plot_number": "412", "basin": "الجبيهة الشمالي", "area": {"value": 1250.5, "unit": "m2"}}
+
+
+@pytest.mark.requires_models
+@pytest.mark.skipif(not MODELS_DIR, reason="DPC_MODELS_DIR not set (no local model weights)")
+@pytest.mark.parametrize("quality", [{}, {"rotate": 1.5, "blur": 1.0, "noise": 18, "jpeg_quality": 40}],
+                         ids=["clean", "degraded"])
+def test_real_ocr_scan_never_accepts_wrong_values(tmp_path, quality):
+    """Real PaddleOCR on a rendered scan: every field is either correct, or not
+    accepted (missing / unreadable / conflict / flagged for review)."""
+    _real_paddle_or_skip()
+    from document_parser_core.tests.fixtures import render_scan
+    from document_parser_core.validators import values_conflict
+    scan = render_scan(SCAN_ROWS, tmp_path / "scan.png", **quality)
+    r = parse_document(str(scan), "building_permit",
+                       {"models_dir": MODELS_DIR, "strict_network_guard": True, "vlm": {"enabled": False}})
+    assert r["status"] != "failed", r["error"]
+    correct = 0
+    for name, expected in SCAN_EXPECTED.items():
+        f = r["fields"][name]
+        accepted = f["status"] == "extracted" and not f["requires_review"]
+        ok = f["value"] is not None and not values_conflict(f["value"], expected)
+        assert ok or not accepted, f"{name}: wrong value {f['value']!r} accepted without review"
+        correct += ok
+    if not quality:
+        assert correct == len(SCAN_EXPECTED), r["fields"]
+
+
+@pytest.mark.requires_models
+@pytest.mark.skipif(not MODELS_DIR, reason="DPC_MODELS_DIR not set (no local model weights)")
+def test_real_ocr_coordinate_table(tmp_path):
+    _real_paddle_or_skip()
+    from document_parser_core.tests.fixtures import render_scan
+    rows = [["1", "245100.25", "1102345.10", "880.15"], ["2", "245130.60", "1102360.45", "881.02"],
+            ["3", "245150.05", "1102330.90", "879.77"]]
+    scan = render_scan(["Coordinates", "", ["Point", "E", "N", "Z"], *rows], tmp_path / "t.png")
+    r = parse_document(str(scan), "coordinate_table",
+                       {"models_dir": MODELS_DIR, "strict_network_guard": True, "vlm": {"enabled": False}})
+    t = [t for t in r["tables"] if t["kind"] == "coordinate_table"][0]
+    assert t["columns"] == ["point_id", "E", "N", "Z"]
+    assert [[row["values"]["point_id"], row["values"]["E"], row["values"]["N"], row["values"]["Z"]] for row in t["rows"]] == \
+        [[r[0], float(r[1]), float(r[2]), float(r[3])] for r in rows]
 
 
 @pytest.mark.requires_models

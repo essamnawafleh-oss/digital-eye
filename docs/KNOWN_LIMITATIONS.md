@@ -1,15 +1,27 @@
 # Known Limitations and Unsupported Cases
 
-## Not verified (blocked by the development environment)
+## Verification status
 
-- **No real model has been run.** Hugging Face, Baidu BOS, ModelScope, AIStudio and
-  datalab.to were unreachable, so PaddleOCR and Qwen2.5-VL code paths are tested only
-  for configuration, readiness checks, error handling and output validation (with fake
-  providers). Inference behaviour, Arabic recognition quality, PaddleOCR's Arabic output
-  direction, VLM JSON compliance and speed are all **unknown**.
-- Exact Qwen2.5-VL GGUF file names / checksums are unconfirmed.
+- **PaddleOCR (verified with real weights, 2026-10-24):** runs on CPU, offline, at ~2–4 s per
+  page. Measured only on **synthetic** scans (one font, generated text, simulated
+  blur/noise/skew). See `docs/BENCHMARK_RESULTS.md`. **No real-world document has been
+  tested**; real scans (other fonts, stamps, photos, handwriting) will be harder.
+- **Vision model (Qwen2.5-VL via llama.cpp): never run with weights.** JSON-schema
+  grammar conversion and argument signatures are verified, inference is not. Exact GGUF
+  file names are unconfirmed.
 - No GPU testing; no Windows or macOS testing.
-- **No accuracy figures exist.** Run `benchmarks/evaluate.py` on a manually verified dataset first.
+
+## Known OCR weaknesses (measured on the synthetic benchmark)
+
+- Some wrong values are still accepted without review: Latin letters misread consistently
+  by *both* recognisers (e.g. `LIC` → `LC` on heavy blur) cannot be caught by the
+  cross-check. See the false-acceptance rate in BENCHMARK_RESULTS.md.
+- Numbers in Arabic-Indic digits read by OCR are always sent to review: the Arabic model
+  drops the decimal separator `٫` and units.
+- Mixed Arabic/Latin lines lose spaces/colons between scripts; handled for label/value
+  pairs, but free text from such lines may have run-order errors.
+- Pages with tilted lines can merge English and Arabic lines into one visual row; each
+  segment keeps its own direction, but strong skew (> ~2°) is untested.
 
 ## Deferred by design (scope control)
 

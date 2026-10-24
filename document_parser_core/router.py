@@ -205,7 +205,8 @@ class Router:
         if specs:
             for cand in extract_fields(content, specs, min_conf=self.cfg.routing.min_ocr_confidence,
                                        provider=provider, date_order=self.cfg.date_order,
-                                       decimal_separator=self.cfg.decimal_separator, dunum_m2=self.cfg.dunum_m2):
+                                       decimal_separator=self.cfg.decimal_separator, dunum_m2=self.cfg.dunum_m2,
+                                       review_conf=self.cfg.routing.review_ocr_confidence):
                 st.candidates.setdefault(cand.name, []).append(_Cand(cand, provider, level, is_ocr))
         if want_tables:
             for t in extract_coordinate_tables(content, provider, self.cfg.decimal_separator):
@@ -402,6 +403,9 @@ def _fill(res: FieldResult, c: _Cand) -> None:
     res.value = parsed.value if parsed and parsed.ok else None
     if parsed is not None:
         _apply_validation(res, parsed)
+    if cand.review_flags:
+        res.requires_review = True
+        res.review_reasons.extend(cand.review_flags)
 
 
 def _apply_validation(res: FieldResult, parsed: v.Parsed) -> None:
@@ -424,7 +428,8 @@ def _to_evidence(c: _Cand) -> Evidence:
         value=cand.parsed.value if cand.parsed and cand.parsed.ok else None,
         confidence=cand.confidence,
         confidence_kind=ConfidenceKind.OCR_SCORE if c.is_ocr else ConfidenceKind.NATIVE_TEXT,
-        note=f"label={cand.label!r}; status={cand.status}" + ("; approximate word box" if cand.approx_bbox else ""),
+        note=f"label={cand.label!r}; status={cand.status}" + ("; approximate word box" if cand.approx_bbox else "")
+        + ("; value printed before label (mixed-direction line)" if cand.value_before_label else ""),
     )
 
 

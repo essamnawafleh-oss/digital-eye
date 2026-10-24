@@ -165,3 +165,70 @@ class ScriptedVLM(VLMProvider):
             except MalformedModelOutputError as exc:
                 last = exc
         raise MalformedModelOutputError(f"after retries: {last}")
+
+
+# ----------------------------------------------------------------- realistic scans
+def render_scan(rows: list, path: Path, *, dpi: int = 200, font: Path | None = None, rotate: float = 0.0,
+                blur: float = 0.0, noise: float = 0.0, jpeg_quality: int | None = None, seed: int = 0) -> Path:
+    """Render text rows as a scanned A4 page with Pillow + libraqm (standard Unicode
+    bidi, unlike MuPDF's HTML renderer), then apply scanner-like degradation.
+
+    A row is a string (right-aligned if mostly Arabic, else left-aligned) or a list of
+    cell strings placed in fixed columns (tables). Saves PNG/JPEG by suffix, or an
+    image-only PDF for '.pdf'.
+    """
+    import random
+
+    from PIL import ImageDraw, ImageFilter, ImageFont, features
+
+    if not features.check("raqm"):
+        raise RuntimeError("Pillow was built without libraqm; cannot render bidi text correctly")
+    font = font or arabic_font()
+    w, h = int(8.27 * dpi), int(11.69 * dpi)
+    px = int(11 * dpi / 72)
+    img = Image.new("L", (w, h), 255)
+    draw = ImageDraw.Draw(img)
+    fnt = ImageFont.truetype(str(font), px, layout_engine=ImageFont.Layout.RAQM)
+    margin, y = int(0.8 * dpi), int(0.8 * dpi)
+    for row in rows:
+        if isinstance(row, (list, tuple)):
+            col_w = (w - 2 * margin) // max(1, len(row))
+            for i, cell in enumerate(row):
+                draw.text((margin + i * col_w, y), cell, font=fnt, fill=0)
+        elif row:
+            rtl = sum("؀" <= c <= "ۿ" for c in row) > sum(c.isascii() and c.isalpha() for c in row)
+            direction = "rtl" if rtl else "ltr"
+            tw = draw.textlength(row, font=fnt, direction=direction)
+            x = w - margin - tw if rtl else margin
+            draw.text((x, y), row, font=fnt, fill=0, direction=direction)
+        y += int(px * 1.9)
+    if rotate:
+        img = img.rotate(rotate, resample=Image.BICUBIC, expand=False, fillcolor=255)
+    if blur:
+        img = img.filter(ImageFilter.GaussianBlur(blur))
+    if noise:
+        import numpy as np
+        rng = np.random.default_rng(seed)
+        arr = np.asarray(img, dtype=np.float32) + rng.normal(0, noise, (h, w))
+        img = Image.fromarray(np.clip(arr, 0, 255).astype("uint8"))
+    random.seed(seed)
+    img = img.convert("RGB")
+    path = Path(path)
+    if path.suffix.lower() == ".pdf":
+        import io
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=jpeg_quality or 90)
+        doc = pymupdf.open()
+        page = doc.new_page(width=595, height=842)
+        page.insert_image(page.rect, stream=buf.getvalue())
+        doc.save(path, deflate=True)
+    elif path.suffix.lower() in (".jpg", ".jpeg"):
+        img.save(path, quality=jpeg_quality or 90)
+    else:
+        if jpeg_quality:
+            import io
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=jpeg_quality)
+            img = Image.open(io.BytesIO(buf.getvalue()))
+        img.save(path)
+    return path

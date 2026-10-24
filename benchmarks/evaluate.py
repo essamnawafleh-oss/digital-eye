@@ -82,6 +82,7 @@ def evaluate_entry(entry: dict, root: Path, options: dict, tol: float) -> dict:
             correct = status == "extracted" and got.get("value") is not None and not values_conflict(got["value"], expected)
         fields.append({
             "name": name, "critical": name in critical, "expected": expected, "got": got.get("value"),
+            "raw_text": got.get("raw_text"), "confidence": got.get("confidence"),
             "status": status, "correct": correct, "flagged_for_review": flagged,
             # accepted = system presented a value as usable without asking for review
             "false_acceptance": (status == "extracted" and not got.get("requires_review") and not correct),

@@ -1,94 +1,55 @@
 # Local models
 
 Model weights are **never** stored in this repository and **never** downloaded during
-parsing. Provision them once, on a machine with internet access, then copy the folder
-to the offline machine and point the parser at it:
+parsing. Download them once (needs internet), then everything runs offline:
 
 ```bash
-export DPC_MODELS_DIR=/opt/dpc-models          # Windows: set DPC_MODELS_DIR=C:\dpc-models
-# or per call: parse_document(path, options={"models_dir": "/opt/dpc-models"})
+pip install -r document_parser_core/requirements-paddle.txt   # includes huggingface_hub
+python scripts/download_models.py --models-dir /opt/dpc-models # ~20 MB, writes manifest.json
+export DPC_MODELS_DIR=/opt/dpc-models                          # Windows: set DPC_MODELS_DIR=C:\dpc-models
 ```
+or pass `options={"models_dir": "/opt/dpc-models"}` to `parse_document`.
 
-## Expected layout
+## Layout
 
 ```
 $DPC_MODELS_DIR/
 ├── paddle/
-│   ├── PP-OCRv5_server_det/          # text detection
-│   │   ├── inference.yml             # required (checked)
-│   │   ├── inference.pdiparams       # required (checked)
-│   │   └── inference.json            # program file shipped with PaddleX 3.x models
-│   └── arabic_PP-OCRv5_mobile_rec/   # Arabic recognition (lang="ar" in paddleocr 3.7.0)
-│       ├── inference.yml
-│       ├── inference.pdiparams
-│       └── inference.json
-├── vlm/
-│   ├── Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf        # language model (name UNVERIFIED, see below)
-│   └── mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf    # multimodal projector (name UNVERIFIED)
-└── manifest.json                     # written by scripts/verify_models.py --write
+│   ├── PP-OCRv5_mobile_det/          # text detection           4.8 MB
+│   ├── arabic_PP-OCRv5_mobile_rec/   # Arabic + Latin + digits  7.9 MB
+│   └── en_PP-OCRv5_mobile_rec/       # Latin/digit cross-check  7.8 MB
+│       (each: inference.yml + inference.pdiparams [checked], inference.json, config.json)
+├── vlm/                              # OPTIONAL (level 3), ~6 GB, not verified end-to-end
+│   ├── Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf
+│   └── mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf
+└── manifest.json                     # SHA-256 of every file (scripts/verify_models.py)
 ```
 
-Every path can also be set explicitly (`paddle.det_model_dir`, `paddle.rec_model_dir`,
-`vlm.model_path`, `vlm.mmproj_path`), e.g. to use a different quantisation.
+Every path can be overridden (`paddle.det_model_dir`, `paddle.rec_model_dir`,
+`paddle.cross_check_rec_model_dir`, `vlm.model_path`, `vlm.mmproj_path`).
 
-## What is verified and what is not
+## Why these models (measured 2026-10-24, 4 CPU cores, no GPU)
 
-| Item | Status |
+| Choice | Evidence |
 |---|---|
-| PaddleOCR model names for `lang="ar"` | Source-verified in paddleocr 3.7.0 (`_get_ocr_model_names`) |
-| PaddleX model dir needs `inference.yml` | Source-verified (`paddlex/inference/models/utils/model_config.py`) |
-| PaddleX hosts: HF repo `PaddlePaddle/<model_name>`; BOS `.../<model_name>_infer.tar` | Source-verified (`official_models.py`) |
-| Qwen2.5-VL GGUF repo `ggml-org/Qwen2.5-VL-7B-Instruct-GGUF` supported by llama.cpp | Verified in llama.cpp `docs/multimodal.md` |
-| Exact GGUF file names, sizes, checksums | **UNVERIFIED** — Hugging Face was unreachable from the dev environment |
-| End-to-end inference with any of these weights | **UNVERIFIED** |
+| `PP-OCRv5_mobile_det` instead of the server detector paddleocr picks for `lang="ar"` | Same text on the test page; 2.0 s vs 20 s per page; 690 MB vs 4.0 GB RSS |
+| `arabic_PP-OCRv5_mobile_rec` | What paddleocr 3.7.0 maps `lang="ar"` to; its dictionary (747 chars) includes Latin letters, ASCII and Arabic-Indic digits |
+| `en_PP-OCRv5_mobile_rec` as a second reader | The Arabic model dropped digits/letters in Latin runs inside Arabic lines (`128` → `18`, `BP-2025/9070` → `BP-2025/907`) with high scores; the English model read all those cases correctly. Disagreements are flagged for review; it is also the primary reader for lines without Arabic |
+| oneDNN off (`paddle.enable_mkldnn=False`) | With paddlepaddle 3.3.1 it crashed on both detectors (`ConvertPirAttribute2RuntimeAttribute not support`) |
+| `det_limit_side_len=960` | Without it the server detector tried to allocate 20 GB for one 200-dpi page |
 
-## Provisioning (run on an online machine; commands UNVERIFIED in the dev environment)
+Benchmark details: `docs/BENCHMARK_RESULTS.md`.
 
-PaddleOCR — either let PaddleOCR download into its cache once, then copy:
+## Licences (checked on the downloaded model cards, 2026-10-24)
 
-```bash
-python - <<'EOF'
-from paddleocr import PaddleOCR
-PaddleOCR(lang="ar", use_doc_orientation_classify=False, use_doc_unwarping=False,
-          use_textline_orientation=False)
-EOF
-cp -r ~/.paddlex/official_models/PP-OCRv5_server_det        $DPC_MODELS_DIR/paddle/
-cp -r ~/.paddlex/official_models/arabic_PP-OCRv5_mobile_rec $DPC_MODELS_DIR/paddle/
-```
+| Model | Licence |
+|---|---|
+| PP-OCRv5_mobile_det, arabic_PP-OCRv5_mobile_rec, en_PP-OCRv5_mobile_rec | **Apache-2.0** (model card front matter) |
+| Qwen2.5-VL GGUF (optional) | not checked: model card not downloaded. From prior knowledge: 7B Apache-2.0, 3B non-commercial |
 
-or download the repos directly:
+## Optional vision model
 
-```bash
-huggingface-cli download PaddlePaddle/PP-OCRv5_server_det        --local-dir $DPC_MODELS_DIR/paddle/PP-OCRv5_server_det
-huggingface-cli download PaddlePaddle/arabic_PP-OCRv5_mobile_rec --local-dir $DPC_MODELS_DIR/paddle/arabic_PP-OCRv5_mobile_rec
-```
-
-VLM — list the repo's files first, choose the Q4_K_M model and the mmproj file, and set
-the config to the exact file names you downloaded:
-
-```bash
-huggingface-cli download ggml-org/Qwen2.5-VL-7B-Instruct-GGUF --local-dir $DPC_MODELS_DIR/vlm \
-    --include "*Q4_K_M*.gguf" "mmproj*.gguf"
-```
-
-Then pin what you provisioned and check the layout:
-
-```bash
-python scripts/verify_models.py --write     # records SHA-256 of every model file
-python scripts/verify_models.py             # later: fails if files are missing or changed
-```
-
-## Licences (check every model card before use)
-
-- PP-OCRv5 models: Apache-2.0 per the PaddleOCR project (confirm on each model card).
-- Qwen2.5-VL: **licence depends on size** (from prior knowledge, re-check): 7B Apache-2.0,
-  3B *Qwen Research License* (non-commercial), 72B *Qwen License*. The 7B is the default
-  candidate for that reason.
-- Surya weights (deferred provider): licence UNVERIFIED; older releases restricted
-  commercial use above a revenue threshold.
-
-## Hardware notes (estimates, not measured)
-
-- PaddleOCR PP-OCRv5 server det + mobile rec on CPU: seconds per page.
-- Qwen2.5-VL-7B Q4_K_M: ~5–6 GB RAM; on a 4-core CPU expect tens of seconds to minutes
-  per page. Measure with `benchmarks/evaluate.py` before relying on it.
+`python scripts/download_models.py --with-vlm` adds the Qwen2.5-VL-7B GGUF files (~6 GB)
+and prints their exact names; set `vlm.model_file` / `vlm.mmproj_file` if they differ
+from the defaults. It needs `requirements-vlm.txt` (compiles llama.cpp). This path has
+**not** been run with real weights yet.

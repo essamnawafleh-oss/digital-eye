@@ -37,12 +37,31 @@ def apply_offline_env() -> None:
 class PaddleConfig:
     enabled: bool = True
     lang: str = "ar"
-    # Model names verified against paddleocr 3.7.0 `_get_ocr_model_names` for lang="ar".
-    det_model_name: str = "PP-OCRv5_server_det"
+    # Recogniser: what paddleocr 3.7.0 maps lang="ar" to. Detector: the mobile model
+    # instead of the server one paddleocr picks by default. Measured 2026-10-24 on a
+    # 200-dpi A4 page, 4 CPU cores: mobile 2.0 s / 690 MB RSS, server 20 s / 4.0 GB,
+    # identical text on the synthetic permit page. Set "PP-OCRv5_server_det" to compare.
+    det_model_name: str = "PP-OCRv5_mobile_det"
     rec_model_name: str = "arabic_PP-OCRv5_mobile_rec"
     det_model_dir: str | None = None  # default: <models_dir>/paddle/<det_model_name>
     rec_model_dir: str | None = None  # default: <models_dir>/paddle/<rec_model_name>
+    # Second recogniser that re-reads every line containing Latin letters or digits.
+    # Lines without Arabic use it as the primary reading; elsewhere its Latin/digit
+    # tokens must agree with the Arabic model's, or the value is flagged for review.
+    # Benchmark 2026-10-24: the Arabic model misread digits in Arabic lines
+    # ('رقم القطعة: 128' -> '18', score 0.94); this model read all such cases right.
+    # None disables the cross-check.
+    cross_check_rec_model_name: str | None = "en_PP-OCRv5_mobile_rec"
+    cross_check_rec_model_dir: str | None = None
     device: str = "cpu"
+    # oneDNN (MKL-DNN) CPU acceleration. Off by default: with paddlepaddle 3.3.1 on CPU,
+    # PP-OCRv5 detection crashed with "ConvertPirAttribute2RuntimeAttribute not support"
+    # inside onednn_instruction.cc (reproduced 2026-10-24).
+    enable_mkldnn: bool = False
+    # Detection input size. Without a cap, the server detector tried to allocate 20 GB
+    # for one 200-dpi page. "max" + 960 limits the longer image side.
+    det_limit_type: str = "max"
+    det_limit_side_len: int = 960
     # Run in a separate interpreter (e.g. a dedicated venv). None = in-process.
     python_executable: str | None = None
     worker_timeout_s: float = 600.0
@@ -79,7 +98,11 @@ class RoutingConfig:
     min_image_coverage_for_scan: float = 0.5
     min_drawings_for_vector_page: int = 500
     # OCR thresholds (PaddleOCR rec_scores are model scores, not calibrated probabilities)
-    min_ocr_confidence: float = 0.80
+    min_ocr_confidence: float = 0.80  # below: value is "unreadable" and not returned
+    # Between min_ocr_confidence and this: value returned but flagged for review.
+    # Chosen on the synthetic benchmark of 2026-10-24 (seed 2026): at 0.90 it caught
+    # 8/14 wrong OCR values for 5/169 correct ones sent to review.
+    review_ocr_confidence: float = 0.90
     # Escalation
     max_level: int = 3  # 1 = fast only, 2 = + layout/table, 3 = + VLM
     max_vlm_pages: int = 3
@@ -153,6 +176,12 @@ class ParserConfig:
 
     def paddle_rec_dir(self) -> Path | None:
         return _resolve(self.paddle.rec_model_dir, self._models_root(), "paddle", self.paddle.rec_model_name)
+
+    def paddle_cross_check_dir(self) -> Path | None:
+        name = self.paddle.cross_check_rec_model_name
+        if not name:
+            return None
+        return _resolve(self.paddle.cross_check_rec_model_dir, self._models_root(), "paddle", name)
 
     def vlm_model_path(self) -> Path | None:
         return _resolve(self.vlm.model_path, self._models_root(), "vlm", self.vlm.model_file)

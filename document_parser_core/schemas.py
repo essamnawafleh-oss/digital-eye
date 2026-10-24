@@ -85,6 +85,9 @@ class Line(_Model):
     page: int
     words: list[Word] = Field(default_factory=list)
     confidence: float | None = None  # min word / line score where available
+    # Independent second reading of the same line image (OCR cross-check recogniser).
+    cross_check_text: str | None = None
+    cross_check_model: str | None = None
 
 
 class TextQuality(_Model):

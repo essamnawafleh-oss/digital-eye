@@ -2,8 +2,8 @@
 
     python scripts/verify_models.py [--models-dir DIR] [--write]
 
-Exit code 0 = every enabled provider's files are present (and match manifest.json
-if one exists); 1 = something is missing or changed.
+Exit code 0 = the OCR models are present (the vision model only with --require-vlm)
+and match manifest.json if one exists; 1 = something is missing or changed.
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--models-dir")
     ap.add_argument("--write", action="store_true", help="write manifest.json with checksums")
+    ap.add_argument("--require-vlm", action="store_true", help="fail if the optional vision model is missing")
     args = ap.parse_args(argv)
     cfg = ParserConfig.from_env()
     if args.models_dir:
@@ -43,15 +44,15 @@ def main(argv=None) -> int:
         return 1
     root = Path(cfg.models_dir)
     ok = True
-    for provider in (PaddleOCRProvider(cfg), LlamaCppVLMProvider(cfg)):
+    for provider, required in ((PaddleOCRProvider(cfg), True), (LlamaCppVLMProvider(cfg), args.require_vlm)):
         try:
             provider.check_ready()
-            print(f"[ok]      {provider.name}")
+            print(f"[ok]       {provider.name}")
         except DocumentParserError as exc:
-            ok = False
-            print(f"[missing] {provider.name}: {exc}")
+            ok = ok and not required
+            print(f"[{'missing' if required else 'optional'}]{' ' if required else ''} {provider.name}: {exc}")
 
-    files = sorted(p for p in root.rglob("*") if p.is_file() and p.name != "manifest.json")
+    files = sorted(p for p in root.rglob("*") if p.is_file() and p.name != "manifest.json" and ".cache" not in p.parts)
     current = {str(p.relative_to(root)).replace("\\", "/"): sha256(p) for p in files}
     manifest = root / "manifest.json"
     if args.write:
