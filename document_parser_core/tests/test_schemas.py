@@ -49,6 +49,8 @@ def test_field_spec_validation():
     ("-12.5", -12.5),
     ("12,5", 12.5),
     ("1 250 000", 1250000),
+    ("٣٦٠٨،٠٠", 3608.0),
+    ("٦٤٦٧،٥", 6467.5),
 ])
 def test_parse_number(raw, expected):
     p = v.parse_number(raw)

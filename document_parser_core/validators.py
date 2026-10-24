@@ -37,6 +37,9 @@ def parse_number(raw: str, decimal_separator: str = "auto", strict: bool = False
     '11O2360.45' must fail rather than yield 11)."""
     s = tu.to_ascii_digits(tu.normalize_text(raw)).strip()
     s = s.replace(tu.ARABIC_DECIMAL_SEP, ".").replace(tu.ARABIC_THOUSANDS_SEP, ",")
+    # The Arabic comma '،' between digits is used (and read by OCR) as a separator:
+    # '٣٦٠٨،٠٠'. Treat it like ',' so the usual decimal/thousands rules apply.
+    s = re.sub(r"(?<=\d)\u060c(?=\d)", ",", s)
     s = s.replace("−", "-").replace(" ", " ")
     m = _NUM_RE.fullmatch(s) if strict else _NUM_RE.search(s)
     if not m:

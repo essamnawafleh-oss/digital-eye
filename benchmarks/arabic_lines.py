@@ -239,7 +239,8 @@ def _norm(s: str) -> str:
 
 
 def _digits_ascii(s: str) -> str:
-    return s.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩٫", "0123456789."))
+    s = s.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩٫۰۱۲۳۴۵۶۷۸۹", "0123456789.0123456789"))
+    return re.sub(r"(?<=\d)\u060c(?=\d)", ".", s)  # Arabic comma used as decimal separator
 
 
 def _lev(a, b) -> int:
