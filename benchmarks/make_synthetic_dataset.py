@@ -74,13 +74,26 @@ def coord_table(rng: random.Random):
     return ["Coordinates of plot corners", "", ["Point", "E", "N", "Z"], *rows], gt
 
 
+def _covers(font: Path, rows) -> bool:
+    from fontTools.ttLib import TTFont
+    cmap = TTFont(str(font)).getBestCmap()
+    text = "".join(r if isinstance(r, str) else "".join(r) for r in rows)
+    return all(ord(c) in cmap or c.isspace() for c in text)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("out", type=Path)
     ap.add_argument("--n", type=int, default=12, help="permits per quality level")
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--fonts", help="folder of .ttf fonts to pick from per document (default: one system font)")
     args = ap.parse_args(argv)
     rng = random.Random(args.seed)
+    fonts = sorted(Path(args.fonts).glob("*.ttf")) if args.fonts else [None]
+
+    def pick_font(rows):
+        ok = [f for f in fonts if f is None or _covers(f, rows)]
+        return rng.choice(ok or [None])
     (args.out / "docs").mkdir(parents=True, exist_ok=True)
     manifest = []
     for quality, deg in QUALITY.items():
@@ -89,15 +102,17 @@ def main(argv=None) -> int:
             rows, expected = permit(rng, variant)
             ext = rng.choice([".png", ".jpg", ".pdf"])
             name = f"docs/permit_{quality}_{variant}_{i:02d}{ext}"
-            render_scan(rows, args.out / name, seed=rng.randint(0, 10**6), **deg)
-            manifest.append({"file": name, "split": "benchmark", "document_type": "building_permit",
+            font = pick_font(rows)
+            render_scan(rows, args.out / name, font=font, seed=rng.randint(0, 10**6), **deg)
+            manifest.append({"file": name, "split": "benchmark", "document_type": "building_permit", "font": getattr(font, "name", "default"),
                              "critical_fields": ["permit_number", "area", "plot_number"],
                              "expected_fields": expected, "tags": [quality, variant, "synthetic"]})
         for i in range(max(1, args.n // 4)):
             rows, gt = coord_table(rng)
             name = f"docs/coords_{quality}_{i:02d}.png"
-            render_scan(rows, args.out / name, seed=rng.randint(0, 10**6), **deg)
-            manifest.append({"file": name, "split": "benchmark", "document_type": "coordinate_table",
+            font = pick_font(rows)
+            render_scan(rows, args.out / name, font=font, seed=rng.randint(0, 10**6), **deg)
+            manifest.append({"file": name, "split": "benchmark", "document_type": "coordinate_table", "font": getattr(font, "name", "default"),
                              "expected_fields": {"coordinate_system": None},
                              "expected_tables": [{"rows": gt}], "tags": [quality, "table", "synthetic"]})
     (args.out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")

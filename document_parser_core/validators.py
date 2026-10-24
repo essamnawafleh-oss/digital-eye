@@ -54,13 +54,16 @@ def parse_number(raw: str, decimal_separator: str = "auto", strict: bool = False
     elif decimal_separator == ",":
         num = num.replace(".", "").replace(",", ".")
     elif has_dot and has_comma:
-        # The right-most separator is the decimal separator.
-        if num.rfind(",") > num.rfind("."):
-            num = num.replace(".", "").replace(",", ".")
-        else:
-            num = num.replace(",", "")
+        # The right-most separator is the decimal separator; the other one groups thousands.
+        dec, grp = (",", ".") if num.rfind(",") > num.rfind(".") else (".", ",")
+        integer = num[:num.rfind(dec)]
+        if grp in integer and not all(len(g) == 3 for g in integer.split(grp)[1:]):
+            return Parsed(messages=[f"malformed number {raw!r}: thousands groups must have 3 digits"])
+        num = integer.replace(grp, "") + "." + num[num.rfind(dec) + 1:]
     elif has_comma:
         parts = num.split(",")
+        if len(parts) > 2 and not all(len(g) == 3 for g in parts[1:]):
+            return Parsed(messages=[f"malformed number {raw!r}: thousands groups must have 3 digits"])
         if len(parts) > 2 or (len(parts) == 2 and len(parts[1]) == 3):
             if len(parts) == 2:
                 warnings.append(f"ambiguous separator in {raw!r}: ',' read as thousands separator")
@@ -68,6 +71,9 @@ def parse_number(raw: str, decimal_separator: str = "auto", strict: bool = False
         else:
             num = num.replace(",", ".")
     elif has_dot and num.count(".") > 1:
+        if not all(len(g) == 3 for g in num.split(".")[1:]):
+            # '4.137.84' is a misread, not a number: never guess which dot is spurious.
+            return Parsed(messages=[f"malformed number {raw!r}: thousands groups must have 3 digits"])
         num = num.replace(".", "")  # 1.234.567 thousands groups
         warnings.append(f"multiple '.' in {raw!r}: read as thousands separators")
     try:
@@ -158,7 +164,9 @@ def parse_identifier(raw: str) -> Parsed:
 
 
 def parse_text(raw: str) -> Parsed:
-    s = re.sub(r"\s+", " ", tu.normalize_text(raw)).strip(" :-–—")
+    # Strip separator punctuation OCR attaches to the value ('؛تلاع العلي': the colon
+    # read as an Arabic semicolon).
+    s = re.sub(r"\s+", " ", tu.normalize_text(raw)).strip(" :：;؛,،.-–—")
     return Parsed(value=s, ok=bool(s), messages=[] if s else ["empty text"])
 
 

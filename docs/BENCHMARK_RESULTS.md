@@ -69,3 +69,47 @@ Reproduce:
 python benchmarks/make_synthetic_dataset.py /tmp/set_c --n 12 --seed 31337
 python benchmarks/evaluate.py /tmp/set_c --options opts.json --report report.md
 ```
+
+---
+
+# Update 2 — multiple fonts, merged readers, stronger-model evaluation (2026-10-24, later)
+
+The results above used **one font (DejaVu Sans)**. With 8 open Arabic fonts (Amiri,
+Cairo, Harmattan, Lateef, Noto Naskh Arabic, Noto Sans Arabic, Scheherazade New, Tajawal;
+OFL licences, used only to generate test data) the picture is worse and more realistic.
+
+## Line-level test (benchmarks/arabic_lines.py, unseen set, 180 lines, value read exactly)
+
+| Reader | All | Arabic words | Arabic line + Latin value | Arabic-Indic numbers | Dates | Latin lines | Time/line |
+|---|---|---|---|---|---|---|---|
+| arabic_PP-OCRv5_mobile_rec alone | 32 % | 56 % | **0 %** | 6 % | 0 % | 100 % | 0.1 s |
+| **Arabic + Latin model merged (now the default)** | **56 %** | 56 % | 67 % | 6 % | 50 % | 100 % | 0.2 s |
+
+Finding: the Arabic model drops Latin/ASCII values from Arabic lines in 7 of 8 fonts
+(even on clean images); the Latin model reads them. Arabic-Indic digits are read
+correctly by neither.
+
+Step 1 (image clean-up) on the same lines: upscaling, autocontrast, binarisation,
+sharpening gave **no gain**; extra white padding made results much worse (31 % → 2 %).
+
+## Stronger recognisers (48 hard lines, CPU)
+
+| Model | Size | Licence | All | Arabic words | Arabic-Indic numbers | Time/line | RAM | Verdict |
+|---|---|---|---|---|---|---|---|---|
+| merged Paddle (default) | 20 MB | Apache-2.0 | 46 % | 67 % | 8 % | 0.2 s | ~1.2 GB | default |
+| **PaddleOCR-VL 0.9B** | 2 GB | Apache-2.0 | **67 %** | **92 %** | 33 % | **15 s** | **~9 GB** | candidate for an optional "strong" mode on flagged fields only; hallucinates on heavy degradation (`14/14/13` for a date) |
+| Qari-OCR v0.3 (Qwen2-VL-2B) | 4.1 GB | Apache-2.0 | 54 % | 75 % | **0 %** | 5 s | ~8 GB | **rejected**: invents values (`١٨/٠٣/٢٠١٦` → `2/11/2017`), reverses digits, adds HTML tags |
+
+PaddleOCR-VL needs `paddleocr[doc-parser]` (separate venv recommended).
+
+## Document-level, 8 fonts, fresh unseen set (seed 777, 45 documents, final code)
+
+| Metric | Value |
+|---|---|
+| False acceptance | **0 / 225 fields** (an earlier multi-font set had 4/225 = 1.8 %, which led to two general fixes: malformed thousands groups are rejected, attached punctuation is stripped) |
+| Fields exact | 75.6 % |
+| Coordinate values | 91.7 % (tables with errors are flagged: inconsistent decimal places) |
+| English permits | 60/60 correct |
+| Mixed permits | 63 correct, 9 flagged |
+| **Arabic permits** | **26 correct, 46 flagged**: Arabic OCR is the weak point |
+| Time | 4.8 s per document |

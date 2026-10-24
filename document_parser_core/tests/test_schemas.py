@@ -162,3 +162,14 @@ def test_vlm_schema_converts_to_llama_grammar():
     llama_grammar = pytest.importorskip("llama_cpp.llama_grammar")
     gbnf = llama_grammar.json_schema_to_gbnf(json.dumps(build_output_schema(NAMES)))
     assert "permit_number" in gbnf and "not_found" in gbnf
+
+
+@pytest.mark.parametrize("raw", ["4.137.84", "1,25,000.5", "12.34.5"])
+def test_malformed_thousands_groups_are_rejected(raw):
+    # '4.137.84' was an OCR misread of '4137.84'; it must not become 413784.
+    assert not v.parse_number(raw).ok
+
+
+def test_text_value_strips_attached_separator_punctuation():
+    assert v.parse_text("؛تلاع العلي").value == "تلاع العلي"
+    assert v.parse_text("، خلدا.").value == "خلدا"

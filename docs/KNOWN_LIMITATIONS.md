@@ -13,6 +13,11 @@
 
 ## Known OCR weaknesses (measured on the synthetic benchmark)
 
+- **Arabic documents need human review for most fields** in OCR: across 8 fonts only
+  ~36 % of Arabic-permit fields were accepted automatically (all others flagged).
+  Arabic words lose letters in some fonts (`الزعبي` → `الزعي`); no second reader exists
+  for Arabic words in the default (light) configuration.
+
 - Some wrong values are still accepted without review: Latin letters misread consistently
   by *both* recognisers (e.g. `LIC` → `LC` on heavy blur) cannot be caught by the
   cross-check. See the false-acceptance rate in BENCHMARK_RESULTS.md.
