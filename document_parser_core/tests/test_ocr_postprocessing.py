@@ -122,3 +122,42 @@ def test_persian_letter_forms_are_normalised(tmp_path):
     r = _parse(tmp_path, [("اسم المالك: لیلى نور القاسم", 0.98, None), ("الحوض: کفر", 0.98, None)])
     assert r["fields"]["owner_name"]["value"] == "ليلى نور القاسم"
     assert r["fields"]["basin"]["value"] == "كفر"
+
+
+# ---------------------------------------------------------------- merging the two readers
+from document_parser_core.core.paddle_handler import merge_line_readings  # noqa: E402
+
+
+def test_merge_takes_latin_value_from_latin_model():
+    # Arabic model dropped the date entirely (observed in 7 of 8 fonts).
+    r = merge_line_readings("تاريخ الإصدار", 0.97, "13/01/2017:j", 0.93)
+    assert r.reading == "arabic+latin" and r.text == "تاريخ الإصدار 13/01/2017"
+    assert r.latin_score == 0.93 and r.cross_text is None
+
+
+def test_merge_keeps_arabic_models_own_digits_as_cross_check():
+    r = merge_line_readings("P-20رقم الرخصة", 0.9, "BP-2023/0351", 0.99)
+    assert "BP-2023/0351" in r.text and r.cross_text == "P-20رقم الرخصة"
+
+
+def test_merge_never_uses_latin_digits_for_arabic_indic_numbers():
+    # Latin model reads '١٢٥٠٫٥' as plausible junk.
+    r = merge_line_readings("المساحة الكلية ١٢٥٠٫٥", 0.9, "2110.0:", 0.95)
+    assert r.reading == "arabic" and "2110" not in r.text
+
+
+def test_merge_ignores_low_score_latin_reading():
+    r = merge_line_readings("المساحة الكلية", 0.95, "21r0.0", 0.64)
+    assert r.reading == "arabic" and r.text == "المساحة الكلية"
+
+
+def test_latin_only_line_uses_latin_model():
+    r = merge_line_readings("Permit No: LC-2019/9764", 0.98, "Permit No: LIC-2019/9764", 0.91)
+    assert r.reading == "latin" and r.text.endswith("LIC-2019/9764") and r.cross_text.endswith("LC-2019/9764")
+
+
+def test_merged_line_gives_latin_tokens_the_latin_score():
+    r = merge_line_readings("رقم القطعة", 0.97, "128 ", 0.84)
+    ln = ocr_line(r.text, [0, 0, 300, 20], 1, r.score, latin_score=r.latin_score)
+    assert {w.text: w.confidence for w in ln.words}["128"] == 0.84
+    assert ln.confidence == 0.84

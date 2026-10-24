@@ -88,6 +88,8 @@ class Line(_Model):
     # Independent second reading of the same line image (OCR cross-check recogniser).
     cross_check_text: str | None = None
     cross_check_model: str | None = None
+    # Which recogniser(s) produced `text`: "arabic", "latin" or "arabic+latin".
+    reading: str | None = None
 
 
 class TextQuality(_Model):

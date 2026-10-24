@@ -52,6 +52,9 @@ class PaddleConfig:
     # ('رقم القطعة: 128' -> '18', score 0.94); this model read all such cases right.
     # None disables the cross-check.
     cross_check_rec_model_name: str | None = "en_PP-OCRv5_mobile_rec"
+    # In Arabic lines, take Latin/digit tokens from the Latin model when its line score
+    # is at least this (see paddle_handler.merge_line_readings for the measurements).
+    latin_merge_min_score: float = 0.80
     cross_check_rec_model_dir: str | None = None
     device: str = "cpu"
     # oneDNN (MKL-DNN) CPU acceleration. Off by default: with paddlepaddle 3.3.1 on CPU,
