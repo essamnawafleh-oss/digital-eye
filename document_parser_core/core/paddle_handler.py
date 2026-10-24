@@ -184,7 +184,8 @@ class MergedReading:
     reading: str  # "arabic" | "latin" | "arabic+latin"
 
 
-_LATIN_TOKEN = re.compile(r"[A-Za-z0-9]+(?:[./\-,:][A-Za-z0-9]+)*")
+# ':' is not a joiner: the Latin model glues junk from Arabic glyphs ('13/01/2017:j').
+_LATIN_TOKEN = re.compile(r"[A-Za-z0-9]+(?:[./\-,][A-Za-z0-9]+)*")
 _ARABIC_INDIC = re.compile(r"[٠-٩۰-۹]")
 
 
